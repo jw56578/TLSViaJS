@@ -1,14 +1,38 @@
 var server = require('./server');
+/*
+Remember
+hashing is the process of turning a message into another format to
+    determine if it was tampered with, not to hide the information
+    hash info, send info, then unhash, they should equal each other, 
+    else something is wrong
+
+encryption is the process of turning a message into another format so that  
+    anyone looking at the other format has no idea what it means
 
 
-main();
+ */
+ //i have the public key of an authority built into me as
+ // would a browser. we all have the public keys of all major CAs
+  
+var versignspublickey = "sldkjfl2kj3rlknfnlkf";
+var godaddyspublickey = "lskjk2j3lkj3lkfjs;dlfk";
+
+module.exports = main;
+
 var process = {
     protocol:'tcp',
     domain:'www.server.com',
     ip:"10.10.10.10",
+    cipher:'',
     port:443,
     stepOne:function(){
-        return stepOne(this);
+        return stepOne(process);
+    },
+    stepTwo:function(){
+        return stepTwo(process);
+    },
+    handleServerHello:function(message){
+        processServerHello.call(process,message);
     }
 };
 function main(){
@@ -29,15 +53,7 @@ function createSSLConnection(){
     .stepTwo()
 
 }
-/*
-The SSL or TLS client sends a "client hello" message that lists 
-cryptographic information such as the SSL or TLS version and, 
-in the client's order of preference, the CipherSuites supported
- by the client. The message also contains a random byte string 
- that is used in subsequent computations. The protocol allows for
- the "client hello" to include the data compression methods 
- supported by the client.
-*/
+
 function processServerHello(message){
 /*
     The SSL or TLS server responds with a "server hello" message 
@@ -50,10 +66,21 @@ function processServerHello(message){
      types of certificates supported and the Distinguished Names
       of acceptable Certification Authorities (CAs).
     */
-    
-    verifyServerCertificateIsValid(message.certificate);
+    this.serverHello = message;
+    this.cipher = message.cipher;
+    this.certificate = message.certificate;
+    this.certIsValid = verifyServerCertificateIsValid(this);
 
 }
+/*
+The SSL or TLS client sends a "client hello" message that lists 
+cryptographic information such as the SSL or TLS version and, 
+in the client's order of preference, the CipherSuites supported
+ by the client. The message also contains a random byte string 
+ that is used in subsequent computations. The protocol allows for
+ the "client hello" to include the data compression methods 
+ supported by the client.
+*/
 function stepOne(process){
     //transport layer security 
     //public key encryption
@@ -69,39 +96,73 @@ function stepOne(process){
         randomNumber:Math.random()
 
     }
-    receiveClientHello(process.helloMessage,processServerHello)
+    server.receiveClientHello(process.helloMessage,process.handleServerHello)
     
     return process;
 }
-//The SSL or TLS client verifies the server's digital certificate.
-//For more information, see How SSL and TLS provide identification,
- //authentication, confidentiality, and integrity.
-function verifyServerCertificateIsValid(certificate){
+function stepTwo(process){
+    //generate random string as a secret key and encrypt with public key
+    process.preMasterSecret = "slkdfj;sxxx" + Math.random + Date.now();
+    var encryptedPMS = encrypt(process.preMasterSecret);
+    server.receivePreMasterSecret(encryptedPMS);
+    return process;
+}
+function encrypt(message){
+    //use the public key
+    //do whatever the algorithm is for the cipher that we are using this session
+    if(process.cipher ==="RC4"){
+         return message;//whatever math this does
+    }
+    return message;
+}
+function verifyServerCertificateIsValid(process){
+
+    var certificate = process.certificate;
 
      var publickeytouse;
     if(certificate.source === "verisign"){
         publickeytouse = versignspublickey;
     }
+     if(certificate.source === "godaddy"){
+        publickeytouse = godaddyspublickey;
+    }
+
     //you are relying on the fact that your computer or browser is 
     //pre installed with the correct public key of trusted CAs
     //or that you manually get the public key from the correct source
+    
+    //1) is the current time between the valid date of the certificate
+    if(Date.now() > certificate.validTo || Date.now() < certificate.validFrom){
+        return false;
+    }
+    /*
+    //2) the certifcate.encrypted property can only be encrypted by the private key
+        // and only decrypted by the public key. so when you decrypt it
+        //you get a message that should mean something
+        //you must know what the meaning is and then compare
+        //i.e. after you decrypt the message, there should be a word in there 
+        //like the domain name of the site and you specifically look for that word
+        //if its there the only way it could be there is because the server knew to put it there and properly encrypted it with the private key
+        and the public key properly decrypted it so that the domain name is clearly seen in plain text
+           
+           so basically this means that a man in the middle will not have any 
+           idea how to encrypt a message such that our public key will decrypt it meaninfully
 
-    //create a message and encrypt it with public key
-    //only someone with the correct private key can decrypt
-    //send the message to the server
-    //ask server to decrypt it and send it back
-    //compare original message to message from server
-    //so is the message sent back in plain text at this point?
+           
+           */
+    var decrypted = decrypt(certificate.encrypted);
 
-    var generatedRandomMessage = "can you decrypt this???";
-    //now what happens?
+    function decrypt(message){
+        if(process.cipher ==="RC4"){
+            return process.domain;
+            //use publickeytouse to decrypt
+           // return message;//whatever math this does
+        }
+        return process.domain;
+    }
+    if(decrypted !== process.domain){
+        return false;
+    }
 
-
-
-
+    return true;
 }
- //i have the public key of an authority built into me as
- // would a browser. we all have the public keys of all major CAs
-  
-var versignspublickey = "sldkjfl2kj3rlknfnlkf";
-var godaddyspublickey = "lskjk2j3lkj3lkfjs;dlfk";
