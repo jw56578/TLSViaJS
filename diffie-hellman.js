@@ -24,6 +24,9 @@ let thepasswordonserver =  Math.pow(clientPublicComponent, serverSecretNumber);
 console.log(thepasswordonclient ===thepasswordonserver);
 
 
+//Now i can use this password to make public encryption pattern
+//whatever the letter is in ascii add the secretpasswordnumber to it, or whatever
+
 
 
 
